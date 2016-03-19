@@ -3,16 +3,18 @@ import MySQLdb
 import requests
 import re
 import sys
+
 reload(sys)
 sys.setdefaultencoding("UTF-8")
 class wooyun:
     def __init__(self):
         host = "127.0.0.1"
         user = "root"
-        password = "passwd"
+        password = "test"
         self.conn = MySQLdb.Connect(host=host,port=3306,user=user,passwd=password,db="wooyun",charset="utf8")
         self.cur = self.conn.cursor()
-
+        self.headers = {'User-Agent': 'Mozilla/5.0'}
+        self.count = 0
 
     def __del__(self):
         self.cur.close()
@@ -27,8 +29,7 @@ class wooyun:
 
     #爬取单个页面
     def GetPage(self,url):
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        onepage = requests.get(url=url,headers=headers)
+        onepage = requests.get(url=url,headers=self.headers)
 
         #漏洞链接和名称正则
         regex_herfandname = re.compile('/bugs/wooyun-[0-9]+-[0-9]+\">.+</a>')
@@ -44,12 +45,11 @@ class wooyun:
             print url
 
         record_list = []
-
         for i in range(0,len(result_guanzhu)):
             onebug = result_herfandname[i]
-            url = (onebug.split('>')[0][:-1])
-            name = (onebug.split('>')[1][:-3])
-            guanzhu = result_guanzhu[i].split('/')[1]
+            url = (onebug.split('>')[0][:-1])#漏洞链接
+            name = (onebug.split('>')[1][:-3])#漏洞名称
+            guanzhu = result_guanzhu[i].split('/')[1]#漏洞关注数
             record = [url,name,guanzhu]
             record_list.append(record)
         self.insert_bugs(record_list)
@@ -61,30 +61,40 @@ class wooyun:
             self.cur.execute("INSERT INTO bug(url,name,guanzhu) VALUE (%s,%s,%s)",oneline)
         self.conn.commit()
 
+
     #爬取所有漏洞的详细信息
     def Detailofallbug(self):
-        self.cur.execute("SELECT url FROM bug")
+        self.cur.execute("SELECT url FROM bug WHERE wholepage IS NULL ")
         url_list = self.cur.fetchall()
+
         for url in url_list:
             try:
                 self.Detailofbug(url[0])
-                print i
-                i=i+1
             except:
                 print "Got ERROR : "+ str(url)
 
-    #目前只正则公开时间,可以后续拓展
-    def Detailofbug(self,url):
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        long_url = "http://www.wooyun.org"+url
-        onepage = requests.get(url=long_url,headers=headers)
 
-        #公开时间正则
+    #获取整个页面
+    def Detailofbug(self,url):
+        long_url = "http://www.wooyun.org"+url
+        onepage = requests.get(url=long_url,headers=self.headers)
+
+        record = [onepage.text,url]
+        self.cur.execute("UPDATE bug SET wholepage=%s WHERE url=%s",record)
+        self.conn.commit()
+
+
+
+    #获取公开时间
+    def Opentimeofbug(self,url):
+        long_url = "http://www.wooyun.org"+url
+        onepage = requests.get(url=long_url,headers=self.headers)
+
         regex_opentime = re.compile("<h3 class=\'wybug_open_date\'>.+</h3>")
         result = re.search(regex_opentime,onepage.text).group()
         regex_Opentime = re.compile("[1-3][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9]")
         result = re.search(regex_Opentime,result).group()
-        record = [result,url]
 
+        record = [result,url]
         self.cur.execute("UPDATE bug set opentime= %s WHERE url = %s",record)
         self.conn.commit()
