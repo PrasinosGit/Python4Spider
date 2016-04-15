@@ -158,7 +158,16 @@ class wooyun:
                 break
             i = i + 1
         self.ThreadStart()
-
+    def ExportNameUrl(self):
+        self.cur.execute("select concat('<a href=http://www.wooyun.org',url,'>',name,'</a>') from bug where name regexp 'app|android|apk' and name not regexp '重置|sql|后台|任意|getshell|遍历|注射|注入|弱口令|随意|盲注';")
+        result_tmp = self.cur.fetchall()
+        result=['<!DOCTYPE html><html><head><meta charset="UTF-8">']
+        for line in result_tmp:
+            result.append(line[0]+'<br>')
+            print line[0]+'<br>'
+        resultfile = open("result.html",'w+')
+        resultfile.writelines(result)
+        resultfile.close()
 
 instance = wooyun()
 instance.DaliyUpdate()
